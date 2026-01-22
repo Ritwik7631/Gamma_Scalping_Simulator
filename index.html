@@ -1,192 +1,1139 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Delta Hedging Simulation (With Frictions)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Delta Hedging Simulation (Realistic Frictions)</title>
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Tailwind + Chart.js -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<style>
-body { font-family: Inter, sans-serif; background:#f0f4f8; }
-canvas { max-height: 300px; }
-.label { font-size: 0.85rem; font-weight: 600; color: #334155; }
-</style>
+  <style>
+    body {
+      font-family: "Inter", sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      background-color: #f0f4f8;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .app-container {
+      background-color: #ffffff;
+      border: 2px solid #cbd5e1;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      overflow: hidden;
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 0.5rem;
+      width: 100%;
+    }
+    .input-group label {
+      margin-bottom: 0.25rem;
+      font-weight: 600;
+      color: #475569;
+      font-size: 0.875rem;
+    }
+    .input-group input, .input-group select {
+      padding: 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.2s;
+      margin: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button:hover { transform: translateY(-1px); }
+    .btn-primary { background-color: #3b82f6; color: white; }
+    .btn-primary:hover { background-color: #2563eb; }
+    .btn-secondary { background-color: #64748b; color: white; }
+    .btn-secondary:hover { background-color: #4b5563; }
+
+    .message-box {
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      width: 90%;
+      max-width: 520px;
+      text-align: center;
+      display: none;
+      position: fixed;
+      left: 50%;
+      top: 18px;
+      transform: translateX(-50%);
+      z-index: 50;
+    }
+    .message-box p { margin: 0 0 10px 0; color: #333; }
+    .message-box button {
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      box-shadow: none;
+      margin: 0;
+    }
+    .message-box button:hover { background-color: #2563eb; }
+
+    .results-table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+    }
+    .results-table th, .results-table td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    .results-table th {
+      background-color: #f8fafc;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+    }
+    .results-table tbody tr:nth-child(even) { background-color: #fefefe; }
+    .results-table tbody tr:hover { background-color: #f0f4f8; }
+
+    .positive { color: #16a34a; font-weight: 600; }
+    .negative { color: #dc2626; font-weight: 600; }
+
+    .chart-container {
+      width: 100%;
+      max-width: 900px;
+      margin-top: 2rem;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .chart-canvas-wrapper {
+      height: 260px;
+      margin-bottom: 1rem;
+    }
+    .chart-canvas-wrapper:last-child { margin-bottom: 0; }
+    .chart-canvas-wrapper canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .summary-container {
+      width: 100%;
+      max-width: 900px;
+      margin-top: 2rem;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      display: none;
+    }
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px dashed #e2e8f0;
+      gap: 14px;
+    }
+    .summary-item:last-child { border-bottom: none; }
+    .summary-item strong { color: #334155; }
+    .summary-item span { color: #1e293b; font-weight: 600; text-align: right; }
+
+    .hidden { display: none !important; }
+  </style>
 </head>
 
-<body class="p-6 flex justify-center">
-<div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-6xl">
+<body class="bg-gray-100 p-4">
+  <div class="app-container">
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">Delta Hedging Simulation (Realistic Frictions)</h1>
+    <div id="statusLine" class="text-sm text-slate-600 mb-6">Not initialized.</div>
 
-<h1 class="text-3xl font-bold mb-6">Delta Hedging Simulation (With Frictions)</h1>
+    <!-- Inputs -->
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-x-4 gap-y-2 w-full max-w-6xl mb-6">
+      <div class="input-group">
+        <label for="initialStockPrice">Initial Stock Price ($)</label>
+        <input type="number" id="initialStockPrice" value="100" min="0.01" step="0.01">
+      </div>
 
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="input-group">
+        <label for="strikePrice">Strike Price ($)</label>
+        <input type="number" id="strikePrice" value="100" min="0.01" step="0.01">
+      </div>
 
-<div>
-  <div class="label">Initial Stock Price ($)</div>
-  <input id="initialStockPrice" type="number" value="100" step="0.01" class="border p-2 rounded w-full">
-</div>
+      <div class="input-group">
+        <label for="daysToExpiry">Days to Expiry</label>
+        <input type="number" id="daysToExpiry" value="30" min="1" step="1">
+      </div>
 
-<div>
-  <div class="label">Strike Price ($)</div>
-  <input id="strikePrice" type="number" value="100" step="0.01" class="border p-2 rounded w-full">
-</div>
+      <div class="input-group">
+        <label for="impliedVol">Implied Volatility (%)</label>
+        <input type="number" id="impliedVol" value="20" min="0.1" step="0.1">
+      </div>
 
-<div>
-  <div class="label">Days to Expiry</div>
-  <input id="daysToExpiry" type="number" value="30" class="border p-2 rounded w-full">
-</div>
+      <div class="input-group">
+        <label for="realizedVol">Realized Volatility (%)</label>
+        <input type="number" id="realizedVol" value="25" min="0.1" step="0.1">
+      </div>
 
-<div>
-  <div class="label">Implied Vol (%)</div>
-  <input id="impliedVol" type="number" value="20" step="0.1" class="border p-2 rounded w-full">
-</div>
+      <div class="input-group">
+        <label for="riskFreeRate">Risk-Free Rate (%)</label>
+        <input type="number" id="riskFreeRate" value="5" step="0.01">
+      </div>
 
-<div>
-  <div class="label">Realized Vol (%)</div>
-  <input id="realizedVol" type="number" value="25" step="0.1" class="border p-2 rounded w-full">
-</div>
+      <div class="input-group">
+        <label for="dividendYield">Dividend Yield (%)</label>
+        <input type="number" id="dividendYield" value="0" step="0.01">
+      </div>
 
-<div>
-  <div class="label">Stock Bid–Ask Spread ($)</div>
-  <input id="stockSpread" type="number" value="0.01" step="0.001" class="border p-2 rounded w-full">
-</div>
+      <div class="input-group">
+        <label for="contractMultiplier">Contract Multiplier</label>
+        <input type="number" id="contractMultiplier" value="1" min="0.01" step="1">
+      </div>
 
-<div>
-  <div class="label">Option Bid–Ask Spread ($)</div>
-  <input id="optionSpread" type="number" value="0.05" step="0.01" class="border p-2 rounded w-full">
-</div>
+      <div class="input-group">
+        <label for="stockSpread">Stock Bid–Ask Spread ($)</label>
+        <input type="number" id="stockSpread" value="0.01" min="0" step="0.001">
+      </div>
 
-<div>
-  <div class="label">Delta Rehedge Threshold</div>
-  <input id="deltaThreshold" type="number" value="0.05" step="0.01" class="border p-2 rounded w-full">
-</div>
+      <div class="input-group">
+        <label for="optionSpread">Option Bid–Ask Spread ($)</label>
+        <input type="number" id="optionSpread" value="0.05" min="0" step="0.01">
+      </div>
 
-</div>
+      <div class="input-group">
+        <label for="commissionPerShare">Commission ($/share)</label>
+        <input type="number" id="commissionPerShare" value="0.005" min="0" step="0.001">
+      </div>
 
-<button id="runBtn" class="bg-blue-600 text-white px-4 py-2 rounded mb-6">
-Run Simulation
-</button>
+      <div class="input-group">
+        <label for="slippageBps">Slippage (bps per trade)</label>
+        <input type="number" id="slippageBps" value="1" min="0" step="0.1">
+      </div>
 
-<canvas id="priceChart"></canvas>
-<canvas id="plChart" class="mt-6"></canvas>
+      <div class="input-group">
+        <label for="slippageVolMult">Slippage Vol Multiplier</label>
+        <input type="number" id="slippageVolMult" value="1" min="0" step="0.1">
+      </div>
 
-<table class="mt-6 w-full border text-sm">
-<thead class="bg-gray-100">
-<tr>
-<th class="border p-1">Day</th>
-<th class="border p-1">Stock</th>
-<th class="border p-1">Option</th>
-<th class="border p-1">Delta</th>
-<th class="border p-1">Shares</th>
-<th class="border p-1">Daily P/L</th>
-<th class="border p-1">Cum P/L</th>
-</tr>
-</thead>
-<tbody id="table"></tbody>
-</table>
+      <div class="input-group">
+        <label for="deltaThreshold">Delta Rehedge Threshold</label>
+        <input type="number" id="deltaThreshold" value="0.05" min="0" step="0.01">
+      </div>
 
-</div>
+      <div class="input-group">
+        <label for="shareLotSize">Share Lot Size</label>
+        <input type="number" id="shareLotSize" value="1" min="0.0001" step="1">
+      </div>
 
-<script>
-// -------- Normal CDF --------
-function normCDF(x) {
-  const t = 1 / (1 + 0.2316419 * Math.abs(x));
-  const d = 0.3989423 * Math.exp(-x * x / 2);
-  let p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-  return x > 0 ? 1 - p : p;
-}
+      <div class="input-group">
+        <label for="optionType">Option Type</label>
+        <select id="optionType">
+          <option value="call">Call</option>
+          <option value="put">Put</option>
+        </select>
+      </div>
 
-// -------- Black–Scholes --------
-function bsPrice(S,K,T,sigma){
-  if(T<=0) return Math.max(0,S-K);
-  let d1=(Math.log(S/K)+0.5*sigma*sigma*T)/(sigma*Math.sqrt(T));
-  let d2=d1-sigma*Math.sqrt(T);
-  return S*normCDF(d1)-K*normCDF(d2);
-}
-function bsDelta(S,K,T,sigma){
-  if(T<=0) return S>K?1:0;
-  let d1=(Math.log(S/K)+0.5*sigma*sigma*T)/(sigma*Math.sqrt(T));
-  return normCDF(d1);
-}
+      <div class="input-group">
+        <label for="optionPosition">Option Position</label>
+        <select id="optionPosition">
+          <option value="short">Short</option>
+          <option value="long">Long</option>
+        </select>
+      </div>
 
-// -------- Simulation --------
-let priceChart, plChart, volState=0;
+      <div class="input-group">
+        <label for="autoClose">Auto-close hedge at expiry</label>
+        <select id="autoClose">
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
+    </div>
 
-document.getElementById("runBtn").onclick = () => {
+    <div class="flex flex-wrap justify-center gap-4 mb-4">
+      <button id="initializeSimulationBtn" class="btn-primary">Initialize Simulation</button>
+      <button id="nextDayBtn" class="btn-primary" disabled>Next Day</button>
+      <button id="showSummaryBtn" class="btn-secondary" disabled>Show Summary</button>
+      <button id="resetSimulationBtn" class="btn-secondary" disabled>Reset Simulation</button>
+    </div>
 
-const S0 = +initialStockPrice.value;
-const K = +strikePrice.value;
-const days = +daysToExpiry.value;
-const iv = +impliedVol.value/100;
-const rv = +realizedVol.value/100;
-const stockSpreadVal = +stockSpread.value;
-const optionSpreadVal = +optionSpread.value;
-const deltaThresh = +deltaThreshold.value;
+    <div class="text-xs text-slate-500 mb-2">
+      Initialize shows Day 0 only. Click “Next Day” to append rows day-by-day.
+    </div>
 
-volState = rv;
+    <!-- Charts -->
+    <div id="chartsContainer" class="chart-container hidden">
+      <h2 class="text-2xl font-bold text-gray-700 mb-4">Simulation Charts</h2>
 
-let S=S0, optionPrice=bsPrice(S,K,days/252,iv)+optionSpreadVal/2;
-let delta=bsDelta(S,K,days/252,iv), shares=-delta, cumPL=0;
+      <div class="chart-canvas-wrapper">
+        <h3 class="text-xl font-semibold text-gray-600 mb-2">Stock Price + Hedge Trades</h3>
+        <canvas id="stockPriceChart"></canvas>
+      </div>
 
-const rows=[], prices=[], pls=[];
+      <div class="chart-canvas-wrapper">
+        <h3 class="text-xl font-semibold text-gray-600 mb-2">Running Total P/L</h3>
+        <canvas id="runningPLChart"></canvas>
+      </div>
 
-for(let d=1; d<=days; d++){
-  volState=Math.max(0.01,0.9*volState+0.1*rv+0.1*(Math.random()-0.5));
-  const z=Math.sqrt(-2*Math.log(Math.random()))*Math.cos(2*Math.PI*Math.random());
-  const prevS=S;
-  S*=Math.exp(-0.5*volState**2/252+volState*Math.sqrt(1/252)*z);
+      <div class="chart-canvas-wrapper">
+        <h3 class="text-xl font-semibold text-gray-600 mb-2">Daily P/L</h3>
+        <canvas id="dailyPLChart"></canvas>
+      </div>
+    </div>
 
-  const optMid=bsPrice(S,K,(days-d)/252,iv);
-  const optExec=optMid-optionSpreadVal/2;
-  const newDelta=bsDelta(S,K,(days-d)/252,iv);
-  const targetShares=-newDelta;
+    <!-- Summary -->
+    <div id="summaryContainer" class="summary-container hidden">
+      <h2 class="text-2xl font-bold text-gray-700 mb-4">Simulation Summary</h2>
 
-  let trade=Math.abs(targetShares-shares)>deltaThresh?targetShares-shares:0;
-  const stockPL=(S-prevS)*shares;
-  const optionPL=optExec-optionPrice;
-  const slip=Math.abs(trade)*S*volState*0.001;
+      <div class="summary-item"><strong>Final Total P/L:</strong> <span id="finalTotalPL"></span></div>
+      <div class="summary-item"><strong>Total Option P/L (MTM):</strong> <span id="totalOptionPL"></span></div>
+      <div class="summary-item"><strong>Total Stock P/L (MTM):</strong> <span id="totalStockPL"></span></div>
+      <div class="summary-item"><strong>Interest on Cash:</strong> <span id="totalInterest"></span></div>
 
-  const dailyPL=stockPL+optionPL-slip;
-  cumPL+=dailyPL;
+      <div class="summary-item"><strong>Total Trading Costs:</strong> <span id="totalCosts"></span></div>
+      <div class="summary-item"><strong>  • Stock Spread Paid:</strong> <span id="costStockSpread"></span></div>
+      <div class="summary-item"><strong>  • Stock Commissions:</strong> <span id="costCommission"></span></div>
+      <div class="summary-item"><strong>  • Stock Slippage:</strong> <span id="costSlippage"></span></div>
+      <div class="summary-item"><strong>  • Option Entry Spread:</strong> <span id="costOptionEntry"></span></div>
 
-  shares+=trade;
-  optionPrice=optExec;
+      <div class="summary-item"><strong>Realized Vol (Input):</strong> <span id="realizedVolatility"></span></div>
+      <div class="summary-item"><strong>Hedge Trades Count:</strong> <span id="hedgeTradesCount"></span></div>
+      <div class="summary-item"><strong>Total Shares Bought:</strong> <span id="totalSharesBought"></span></div>
+      <div class="summary-item"><strong>Avg Buy Price:</strong> <span id="avgBuyPrice"></span></div>
+      <div class="summary-item"><strong>Total Shares Sold:</strong> <span id="totalSharesSold"></span></div>
+      <div class="summary-item"><strong>Avg Sell Price:</strong> <span id="avgSellPrice"></span></div>
+    </div>
 
-  rows.push({d,S,optionPrice,newDelta,shares,dailyPL,cumPL});
-  prices.push(S);
-  pls.push(cumPL);
-}
+    <!-- Table -->
+    <div id="resultsContainer" class="results-table-container hidden">
+      <h2 class="text-2xl font-bold text-gray-700 mb-4 mt-8">Simulation Results Table</h2>
 
-// render
-table.innerHTML="";
-rows.forEach(r=>{
-  table.innerHTML+=`
-  <tr>
-    <td class="border p-1">${r.d}</td>
-    <td class="border p-1">$${r.S.toFixed(2)}</td>
-    <td class="border p-1">$${r.optionPrice.toFixed(2)}</td>
-    <td class="border p-1">${r.newDelta.toFixed(3)}</td>
-    <td class="border p-1">${r.shares.toFixed(3)}</td>
-    <td class="border p-1 ${r.dailyPL>=0?'text-green-600':'text-red-600'}">$${r.dailyPL.toFixed(2)}</td>
-    <td class="border p-1 ${r.cumPL>=0?'text-green-600':'text-red-600'}">$${r.cumPL.toFixed(2)}</td>
-  </tr>`;
-});
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Stock Mid</th>
+            <th id="optionPriceHeader">Option Mid</th>
+            <th>Option Delta</th>
+            <th>Shares Held</th>
+            <th>Trade Shares</th>
+            <th>Trade Cost</th>
+            <th>Daily Stock P/L</th>
+            <th>Daily Option P/L</th>
+            <th>Total Daily P/L</th>
+            <th>Running Total P/L</th>
+          </tr>
+        </thead>
+        <tbody id="resultsTableBody"></tbody>
+      </table>
+    </div>
+  </div>
 
-if(priceChart) priceChart.destroy();
-if(plChart) plChart.destroy();
+  <!-- Message Box -->
+  <div id="messageBox" class="message-box">
+    <p id="messageText"></p>
+    <button id="closeMessageBox">OK</button>
+  </div>
 
-priceChart=new Chart(priceChartCanvas={getContext:()=>priceChartCanvas.getContext("2d")});
-priceChart=new Chart(document.getElementById("priceChart"),{
-  type:"line",
-  data:{labels:rows.map(r=>r.d),datasets:[{label:"Stock Price",data:prices,borderColor:"#2563eb"}]}
-});
+  <script>
+    // ---------- Elements ----------
+    const statusLine = document.getElementById('statusLine');
 
-plChart=new Chart(document.getElementById("plChart"),{
-  type:"line",
-  data:{labels:rows.map(r=>r.d),datasets:[{label:"Cumulative P/L",data:pls,borderColor:"#16a34a"}]}
-});
-};
-</script>
+    const initialStockPriceInput = document.getElementById('initialStockPrice');
+    const strikePriceInput = document.getElementById('strikePrice');
+    const daysToExpiryInput = document.getElementById('daysToExpiry');
+    const impliedVolInput = document.getElementById('impliedVol');
+    const realizedVolInput = document.getElementById('realizedVol');
+    const riskFreeRateInput = document.getElementById('riskFreeRate');
+    const dividendYieldInput = document.getElementById('dividendYield');
+    const contractMultiplierInput = document.getElementById('contractMultiplier');
+
+    const stockSpreadInput = document.getElementById('stockSpread');
+    const optionSpreadInput = document.getElementById('optionSpread');
+    const commissionPerShareInput = document.getElementById('commissionPerShare');
+    const slippageBpsInput = document.getElementById('slippageBps');
+    const slippageVolMultInput = document.getElementById('slippageVolMult');
+    const deltaThresholdInput = document.getElementById('deltaThreshold');
+    const shareLotSizeInput = document.getElementById('shareLotSize');
+
+    const optionTypeSelect = document.getElementById('optionType');
+    const optionPositionSelect = document.getElementById('optionPosition');
+    const autoCloseSelect = document.getElementById('autoClose');
+
+    const initializeSimulationBtn = document.getElementById('initializeSimulationBtn');
+    const nextDayBtn = document.getElementById('nextDayBtn');
+    const showSummaryBtn = document.getElementById('showSummaryBtn');
+    const resetSimulationBtn = document.getElementById('resetSimulationBtn');
+
+    const chartsContainer = document.getElementById('chartsContainer');
+    const resultsContainer = document.getElementById('resultsContainer');
+    const summaryContainer = document.getElementById('summaryContainer');
+
+    const resultsTableBody = document.getElementById('resultsTableBody');
+    const optionPriceHeader = document.getElementById('optionPriceHeader');
+
+    const stockPriceChartCanvas = document.getElementById('stockPriceChart');
+    const runningPLChartCanvas = document.getElementById('runningPLChart');
+    const dailyPLChartCanvas = document.getElementById('dailyPLChart');
+
+    const messageBox = document.getElementById('messageBox');
+    const messageText = document.getElementById('messageText');
+    const closeMessageBox = document.getElementById('closeMessageBox');
+
+    // Summary spans
+    const finalTotalPLSpan = document.getElementById('finalTotalPL');
+    const totalOptionPLSpan = document.getElementById('totalOptionPL');
+    const totalStockPLSpan = document.getElementById('totalStockPL');
+    const totalInterestSpan = document.getElementById('totalInterest');
+
+    const totalCostsSpan = document.getElementById('totalCosts');
+    const costStockSpreadSpan = document.getElementById('costStockSpread');
+    const costCommissionSpan = document.getElementById('costCommission');
+    const costSlippageSpan = document.getElementById('costSlippage');
+    const costOptionEntrySpan = document.getElementById('costOptionEntry');
+
+    const realizedVolatilitySpan = document.getElementById('realizedVolatility');
+    const hedgeTradesCountSpan = document.getElementById('hedgeTradesCount');
+    const totalSharesBoughtSpan = document.getElementById('totalSharesBought');
+    const avgBuyPriceSpan = document.getElementById('avgBuyPrice');
+    const totalSharesSoldSpan = document.getElementById('totalSharesSold');
+    const avgSellPriceSpan = document.getElementById('avgSellPrice');
+
+    // ---------- Charts ----------
+    let stockPriceChartInstance = null;
+    let runningPLChartInstance = null;
+    let dailyPLChartInstance = null;
+
+    // ---------- Simulation State ----------
+    let allSimulationData = [];
+    let currentDayIndex = 0;
+    let totalDaysToSimulate = 0;
+
+    let preCalculatedBuyMarkers = [];
+    let preCalculatedSellMarkers = [];
+
+    // ---------- Message Box ----------
+    function showMessageBox(message) {
+      messageText.textContent = message;
+      messageBox.style.display = 'block';
+    }
+    closeMessageBox.addEventListener('click', () => {
+      messageBox.style.display = 'none';
+    });
+
+    // ---------- Math helpers ----------
+    function norm_cdf(x) {
+      const a1 = 0.319381530;
+      const a2 = -0.356563782;
+      const a3 = 1.781477937;
+      const a4 = -1.821255978;
+      const a5 = 1.330274429;
+      const L = Math.abs(x);
+      const K = 1.0 / (1.0 + 0.2316419 * L);
+      const W = 1.0 - (((((a5 * K + a4) * K + a3) * K + a2) * K + a1) * K)
+        * Math.exp(-L * L / 2.0) / Math.sqrt(2 * Math.PI);
+      return (x < 0) ? (1.0 - W) : W;
+    }
+
+    function bsPrice(S, K, T, r, q, sigma, type) {
+      if (T <= 0) {
+        return type === 'call' ? Math.max(0, S - K) : Math.max(0, K - S);
+      }
+      const sqrtT = Math.sqrt(T);
+      const d1 = (Math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+      const d2 = d1 - sigma * sqrtT;
+      const discS = Math.exp(-q * T);
+      const discK = Math.exp(-r * T);
+
+      if (type === 'call') {
+        return S * discS * norm_cdf(d1) - K * discK * norm_cdf(d2);
+      } else {
+        return K * discK * norm_cdf(-d2) - S * discS * norm_cdf(-d1);
+      }
+    }
+
+    function bsDelta(S, K, T, r, q, sigma, type) {
+      if (T <= 0) {
+        if (type === 'call') return (S > K ? 1 : 0);
+        return (S < K ? -1 : 0);
+      }
+      const sqrtT = Math.sqrt(T);
+      const d1 = (Math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+      const discS = Math.exp(-q * T);
+
+      if (type === 'call') return discS * norm_cdf(d1);
+      return discS * (norm_cdf(d1) - 1);
+    }
+
+    function boxMullerZ() {
+      // stable-ish z
+      const u1 = Math.max(1e-12, Math.random());
+      const u2 = Math.random();
+      return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+    }
+
+    function roundToLot(x, lot) {
+      if (!isFinite(x) || !isFinite(lot) || lot <= 0) return x;
+      return Math.round(x / lot) * lot;
+    }
+
+    // ---------- Simulation core ----------
+    function initializeSimulation() {
+      // Clear UI
+      resultsTableBody.innerHTML = '';
+      resultsContainer.classList.add('hidden');
+      summaryContainer.classList.add('hidden');
+      summaryContainer.style.display = 'none';
+
+      // Show charts container (but empty until initCharts)
+      chartsContainer.classList.add('hidden');
+
+      // Reset state
+      currentDayIndex = 0;
+      allSimulationData = [];
+      preCalculatedBuyMarkers = [];
+      preCalculatedSellMarkers = [];
+
+      // Destroy charts
+      if (stockPriceChartInstance) { stockPriceChartInstance.destroy(); stockPriceChartInstance = null; }
+      if (runningPLChartInstance) { runningPLChartInstance.destroy(); runningPLChartInstance = null; }
+      if (dailyPLChartInstance) { dailyPLChartInstance.destroy(); dailyPLChartInstance = null; }
+
+      // Read inputs
+      const S0 = parseFloat(initialStockPriceInput.value);
+      const K = parseFloat(strikePriceInput.value);
+      let T_days = parseInt(daysToExpiryInput.value, 10);
+
+      const iv = parseFloat(impliedVolInput.value) / 100;
+      const rv = parseFloat(realizedVolInput.value) / 100;
+
+      const r = parseFloat(riskFreeRateInput.value) / 100;
+      const q = parseFloat(dividendYieldInput.value) / 100;
+
+      const M = parseFloat(contractMultiplierInput.value); // shares per option "unit"
+      const stockSpread = Math.max(0, parseFloat(stockSpreadInput.value));
+      const optionSpread = Math.max(0, parseFloat(optionSpreadInput.value));
+      const commission = Math.max(0, parseFloat(commissionPerShareInput.value));
+      const slippageBps = Math.max(0, parseFloat(slippageBpsInput.value));
+      const slippageVolMult = Math.max(0, parseFloat(slippageVolMultInput.value));
+      const deltaThreshold = Math.max(0, parseFloat(deltaThresholdInput.value));
+      const lotSize = Math.max(0.0001, parseFloat(shareLotSizeInput.value));
+
+      const optionType = optionTypeSelect.value; // call/put
+      const optionPosition = optionPositionSelect.value; // long/short
+      const autoClose = autoCloseSelect.value; // yes/no
+
+      // Validation
+      if (!isFinite(S0) || S0 <= 0 ||
+          !isFinite(K) || K <= 0 ||
+          !isFinite(T_days) || T_days <= 0 ||
+          !isFinite(iv) || iv <= 0 ||
+          !isFinite(rv) || rv <= 0 ||
+          !isFinite(M) || M <= 0 ||
+          !isFinite(r) || !isFinite(q) ||
+          !isFinite(stockSpread) || !isFinite(optionSpread) ||
+          !isFinite(commission) || !isFinite(slippageBps) || !isFinite(slippageVolMult) ||
+          !isFinite(deltaThreshold) || !isFinite(lotSize)
+      ) {
+        showMessageBox('Invalid inputs. Ensure all numeric inputs are valid and positive where required.');
+        return;
+      }
+
+      if (T_days > 252 * 5) {
+        showMessageBox('Simulation limited to 5 years (1260 days). Truncating.');
+        T_days = 252 * 5;
+        daysToExpiryInput.value = T_days;
+      }
+
+      totalDaysToSimulate = T_days;
+      optionPriceHeader.textContent = optionType === 'call' ? 'Call Mid' : 'Put Mid';
+
+      const dt = 1 / 252;
+      const optionSign = (optionPosition === 'long') ? +1 : -1;
+
+      // Costs tracking
+      let costStockSpread = 0;
+      let costCommission = 0;
+      let costSlippage = 0;
+      let costOptionEntry = 0;
+      let hedgeTradesCount = 0;
+
+      let totalStockPLSum = 0;
+      let totalOptionPLSum = 0;
+      let totalInterestSum = 0;
+
+      let totalSharesBoughtSum = 0;
+      let totalBuyCostSum = 0;
+      let totalSharesSoldSum = 0;
+      let totalSellRevenueSum = 0;
+
+      // Portfolio state
+      let S = S0;
+
+      // Option mid at day 0 (marking mid)
+      const T0 = T_days / 252;
+      const optMid0 = bsPrice(S, K, T0, r, q, iv, optionType);
+      const optAsk0 = optMid0 + optionSpread / 2;
+      const optBid0 = Math.max(0, optMid0 - optionSpread / 2);
+      const optExec0 = (optionSign === +1) ? optAsk0 : optBid0;
+
+      // Option entry spread cost vs mid
+      costOptionEntry += Math.abs(optExec0 - optMid0) * M;
+
+      // Delta and hedge target (shares to neutralize option delta)
+      const delta0 = bsDelta(S, K, T0, r, q, iv, optionType);
+      let targetShares0 = -optionSign * delta0 * M;
+      targetShares0 = roundToLot(targetShares0, lotSize);
+
+      // Execute initial hedge trade at stock bid/ask
+      // Start with 0 shares -> trade = targetShares0
+      let shares = 0;
+      let cash = 0;
+
+      const initialTrade = targetShares0 - shares;
+      let tradeCost0 = 0;
+      if (Math.abs(initialTrade) > 0) {
+        hedgeTradesCount += 1;
+
+        const mid = S;
+        const execPx = (initialTrade > 0) ? (mid + stockSpread / 2) : (mid - stockSpread / 2);
+
+        const spreadCost = Math.abs(initialTrade) * (stockSpread / 2);
+        const commCost = Math.abs(initialTrade) * commission;
+        const slipCost = Math.abs(initialTrade) * mid * (slippageBps / 10000) * (1 + slippageVolMult * rv);
+
+        costStockSpread += spreadCost;
+        costCommission += commCost;
+        costSlippage += slipCost;
+
+        tradeCost0 = spreadCost + commCost + slipCost;
+
+        // Cash flow from stock trade
+        cash -= initialTrade * execPx;
+        cash -= (commCost + slipCost);
+
+        // Shares update
+        shares += initialTrade;
+
+        // Markers
+        if (initialTrade > 0) preCalculatedBuyMarkers.push({ day: 0, price: mid, shares: initialTrade });
+        if (initialTrade < 0) preCalculatedSellMarkers.push({ day: 0, price: mid, shares: initialTrade });
+
+        // Buy/sell tracking at executed prices
+        if (initialTrade > 0) {
+          totalSharesBoughtSum += initialTrade;
+          totalBuyCostSum += initialTrade * execPx;
+        } else {
+          const sold = Math.abs(initialTrade);
+          totalSharesSoldSum += sold;
+          totalSellRevenueSum += sold * execPx;
+        }
+      }
+
+      // Option entry cash flow
+      cash -= optionSign * optExec0 * M;
+
+      // Define baseline so Day 0 running P/L = 0
+      const baselineValue = cash + shares * S + optionSign * optMid0 * M;
+
+      // Store Day 0
+      allSimulationData.push({
+        day: 0,
+        stockPrice: S,
+        optionMid: optMid0,
+        optionDelta: delta0,
+        sharesHeld: shares,
+        tradeShares: initialTrade,
+        tradeCost: tradeCost0,
+        dailyStockPL: 0,
+        dailyOptionPL: 0,
+        dailyInterest: 0,
+        dailyCosts: tradeCost0, // includes only stock trade costs; option entry shown in summary
+        totalDailyPL: 0,
+        runningTotalPL: 0,
+        portfolioValue: baselineValue,
+      });
+
+      // Pre-calc all remaining days
+      let prevS = S;
+      let prevOptMid = optMid0;
+      let prevCash = cash;
+      let prevShares = shares;
+
+      for (let day = 1; day <= T_days; day++) {
+        // Accrue interest on cash
+        const cashBefore = cash;
+        const cashAfter = cash * Math.exp(r * dt);
+        const interest = cashAfter - cashBefore;
+        cash = cashAfter;
+        totalInterestSum += interest;
+
+        // Simulate stock move (GBM with realized vol, drift ~ (r - q))
+        const z = boxMullerZ();
+        const mu = (r - q);
+        prevS = S;
+        S = S * Math.exp((mu - 0.5 * rv * rv) * dt + rv * Math.sqrt(dt) * z);
+
+        // Time remaining
+        const T_remaining = Math.max(0, (T_days - day) / 252);
+
+        // Option mid and delta
+        const optMid = bsPrice(S, K, T_remaining, r, q, iv, optionType);
+        const delta = bsDelta(S, K, T_remaining, r, q, iv, optionType);
+
+        // Hedge target and thresholding
+        let targetShares = -optionSign * delta * M;
+        targetShares = roundToLot(targetShares, lotSize);
+
+        const deltaMismatch = Math.abs((targetShares - shares) / M);
+        let tradeShares = 0;
+
+        // Forced close at expiry if enabled
+        const isLastDay = (day === T_days);
+        const shouldClose = (isLastDay && autoClose === 'yes');
+
+        if (shouldClose) {
+          tradeShares = -shares; // bring to 0
+        } else {
+          if (deltaMismatch > deltaThreshold) tradeShares = (targetShares - shares);
+        }
+
+        // Execute stock trade costs
+        let tradeCost = 0;
+        if (Math.abs(tradeShares) > 0) {
+          hedgeTradesCount += 1;
+
+          const mid = S;
+          const execPx = (tradeShares > 0) ? (mid + stockSpread / 2) : (mid - stockSpread / 2);
+
+          const spreadCost = Math.abs(tradeShares) * (stockSpread / 2);
+          const commCost = Math.abs(tradeShares) * commission;
+          const slipCost = Math.abs(tradeShares) * mid * (slippageBps / 10000) * (1 + slippageVolMult * rv);
+
+          costStockSpread += spreadCost;
+          costCommission += commCost;
+          costSlippage += slipCost;
+
+          tradeCost = spreadCost + commCost + slipCost;
+
+          // Stock cash flow
+          cash -= tradeShares * execPx;
+          cash -= (commCost + slipCost);
+
+          // Shares update
+          shares += tradeShares;
+
+          // Markers
+          if (tradeShares > 0) preCalculatedBuyMarkers.push({ day, price: mid, shares: tradeShares });
+          if (tradeShares < 0) preCalculatedSellMarkers.push({ day, price: mid, shares: tradeShares });
+
+          // Buy/sell tracking at executed prices
+          if (tradeShares > 0) {
+            totalSharesBoughtSum += tradeShares;
+            totalBuyCostSum += tradeShares * execPx;
+          } else {
+            const sold = Math.abs(tradeShares);
+            totalSharesSoldSum += sold;
+            totalSellRevenueSum += sold * execPx;
+          }
+        }
+
+        // Option cash settlement at expiry (cash-settled; does not create stock assignment)
+        // If auto-close is on, settle option into cash on last day
+        // (P/L impact is already captured via option MTM; this just removes option from future value.)
+        let optValueForPortfolio = optMid;
+        if (shouldClose) {
+          const intrinsic = (optionType === 'call') ? Math.max(0, S - K) : Math.max(0, K - S);
+          // Add intrinsic to cash for long, subtract for short
+          cash += optionSign * intrinsic * M;
+          optValueForPortfolio = 0;
+        }
+
+        // Component P/L (mark-to-market + interest - costs)
+        const stockPL = prevShares * (S - prevS);
+        const optionPL = optionSign * M * ((shouldClose ? ((optionType === 'call') ? Math.max(0, S - K) : Math.max(0, K - S)) : optMid) - prevOptMid);
+        const costs = tradeCost;
+
+        const totalPL = stockPL + optionPL + interest - costs;
+
+        totalStockPLSum += stockPL;
+        totalOptionPLSum += optionPL;
+
+        // Portfolio value and running P/L
+        const portfolioValue = cash + shares * S + optionSign * optValueForPortfolio * M;
+        const runningTotalPL = portfolioValue - baselineValue;
+
+        allSimulationData.push({
+          day,
+          stockPrice: S,
+          optionMid: shouldClose ? ((optionType === 'call') ? Math.max(0, S - K) : Math.max(0, K - S)) : optMid,
+          optionDelta: delta,
+          sharesHeld: shares,
+          tradeShares,
+          tradeCost,
+          dailyStockPL: stockPL,
+          dailyOptionPL: optionPL,
+          dailyInterest: interest,
+          dailyCosts: costs,
+          totalDailyPL: totalPL,
+          runningTotalPL,
+          portfolioValue,
+        });
+
+        // Update prevs for next day
+        prevS = S;
+        prevOptMid = (shouldClose ? ((optionType === 'call') ? Math.max(0, S - K) : Math.max(0, K - S)) : optMid);
+        prevCash = cash;
+        prevShares = shares;
+      }
+
+      // Summary object
+      const totalCosts = costStockSpread + costCommission + costSlippage + costOptionEntry;
+      const avgBuyPx = totalSharesBoughtSum > 0 ? (totalBuyCostSum / totalSharesBoughtSum) : 0;
+      const avgSellPx = totalSharesSoldSum > 0 ? (totalSellRevenueSum / totalSharesSoldSum) : 0;
+
+      window.simulationSummary = {
+        finalTotalPL: allSimulationData[allSimulationData.length - 1].runningTotalPL,
+        totalOptionPL: totalOptionPLSum,
+        totalStockPL: totalStockPLSum,
+        totalInterest: totalInterestSum,
+
+        totalCosts,
+        costStockSpread,
+        costCommission,
+        costSlippage,
+        costOptionEntry,
+
+        realizedVolatility: rv,
+        hedgeTradesCount,
+        totalSharesBought: totalSharesBoughtSum,
+        avgBuyPrice: avgBuyPx,
+        totalSharesSold: totalSharesSoldSum,
+        avgSellPrice: avgSellPx
+      };
+
+      // Initialize UI for day-by-day viewing
+      initializeCharts();
+      appendDayToTable(allSimulationData[0]);
+      updateCharts(allSimulationData[0]);
+
+      chartsContainer.classList.remove('hidden');
+      resultsContainer.classList.remove('hidden');
+
+      nextDayBtn.disabled = false;
+      resetSimulationBtn.disabled = false;
+      initializeSimulationBtn.disabled = true;
+      showSummaryBtn.disabled = false;
+
+      statusLine.textContent = `Initialized. Day 0 / ${totalDaysToSimulate}. Click “Next Day” to step forward.`;
+    }
+
+    function advanceDay() {
+      currentDayIndex++;
+
+      if (currentDayIndex <= totalDaysToSimulate) {
+        const dayData = allSimulationData[currentDayIndex];
+        appendDayToTable(dayData);
+        updateCharts(dayData);
+
+        statusLine.textContent = `Showing Day ${currentDayIndex} / ${totalDaysToSimulate}.`;
+
+        if (currentDayIndex === totalDaysToSimulate) {
+          nextDayBtn.disabled = true;
+          showMessageBox('Simulation complete. Showing summary.');
+          displaySummary();
+          statusLine.textContent = `Complete. Day ${currentDayIndex} / ${totalDaysToSimulate}.`;
+        }
+      }
+    }
+
+    function displaySummary() {
+      const s = window.simulationSummary;
+      if (!s) {
+        showMessageBox("Initialize first.");
+        return;
+      }
+
+      const setMoney = (el, v) => {
+        el.textContent = `$${v.toFixed(2)}`;
+        el.className = (v >= 0 ? 'positive' : 'negative');
+      };
+
+      setMoney(finalTotalPLSpan, s.finalTotalPL);
+      setMoney(totalOptionPLSpan, s.totalOptionPL);
+      setMoney(totalStockPLSpan, s.totalStockPL);
+      setMoney(totalInterestSpan, s.totalInterest);
+
+      setMoney(totalCostsSpan, -Math.abs(s.totalCosts)); // costs as negative display
+      setMoney(costStockSpreadSpan, -Math.abs(s.costStockSpread));
+      setMoney(costCommissionSpan, -Math.abs(s.costCommission));
+      setMoney(costSlippageSpan, -Math.abs(s.costSlippage));
+      setMoney(costOptionEntrySpan, -Math.abs(s.costOptionEntry));
+
+      realizedVolatilitySpan.textContent = `${(s.realizedVolatility * 100).toFixed(2)}%`;
+      hedgeTradesCountSpan.textContent = `${s.hedgeTradesCount}`;
+
+      totalSharesBoughtSpan.textContent = s.totalSharesBought.toFixed(4);
+      avgBuyPriceSpan.textContent = `$${s.avgBuyPrice.toFixed(4)}`;
+      totalSharesSoldSpan.textContent = s.totalSharesSold.toFixed(4);
+      avgSellPriceSpan.textContent = `$${s.avgSellPrice.toFixed(4)}`;
+
+      summaryContainer.classList.remove('hidden');
+      summaryContainer.style.display = 'block';
+    }
+
+    function resetSimulation({ silent = false } = {}) {
+      // Clear UI
+      resultsTableBody.innerHTML = '';
+      resultsContainer.classList.add('hidden');
+      chartsContainer.classList.add('hidden');
+      summaryContainer.classList.add('hidden');
+      summaryContainer.style.display = 'none';
+
+      statusLine.textContent = 'Not initialized.';
+
+      // Reset state
+      currentDayIndex = 0;
+      totalDaysToSimulate = 0;
+      allSimulationData = [];
+      preCalculatedBuyMarkers = [];
+      preCalculatedSellMarkers = [];
+      window.simulationSummary = null;
+
+      // Destroy charts
+      if (stockPriceChartInstance) { stockPriceChartInstance.destroy(); stockPriceChartInstance = null; }
+      if (runningPLChartInstance) { runningPLChartInstance.destroy(); runningPLChartInstance = null; }
+      if (dailyPLChartInstance) { dailyPLChartInstance.destroy(); dailyPLChartInstance = null; }
+
+      // Buttons
+      nextDayBtn.disabled = true;
+      resetSimulationBtn.disabled = true;
+      initializeSimulationBtn.disabled = false;
+      showSummaryBtn.disabled = true;
+
+      if (!silent) showMessageBox('Reset complete.');
+    }
+
+    function appendDayToTable(d) {
+      const row = document.createElement('tr');
+      const dayClass = (d.day === 0) ? 'font-bold bg-gray-50' : '';
+
+      const tradeCostClass = (d.tradeCost <= 0.0000001) ? 'text-slate-500' : 'negative';
+
+      row.innerHTML = `
+        <td class="${dayClass}">${d.day}</td>
+        <td class="${dayClass}">$${d.stockPrice.toFixed(2)}</td>
+        <td class="${dayClass}">$${d.optionMid.toFixed(4)}</td>
+        <td class="${dayClass}">${d.optionDelta.toFixed(4)}</td>
+        <td class="${dayClass}">${d.sharesHeld.toFixed(4)}</td>
+        <td class="${dayClass}">${d.tradeShares.toFixed(4)}</td>
+        <td class="${dayClass} ${tradeCostClass}">$${d.tradeCost.toFixed(4)}</td>
+        <td class="${dayClass} ${d.dailyStockPL >= 0 ? 'positive' : 'negative'}">$${d.dailyStockPL.toFixed(4)}</td>
+        <td class="${dayClass} ${d.dailyOptionPL >= 0 ? 'positive' : 'negative'}">$${d.dailyOptionPL.toFixed(4)}</td>
+        <td class="${dayClass} ${d.totalDailyPL >= 0 ? 'positive' : 'negative'}">$${d.totalDailyPL.toFixed(4)}</td>
+        <td class="${dayClass} ${d.runningTotalPL >= 0 ? 'positive' : 'negative'}">$${d.runningTotalPL.toFixed(4)}</td>
+      `;
+      resultsTableBody.appendChild(row);
+    }
+
+    function initializeCharts() {
+      // Stock chart
+      stockPriceChartInstance = new Chart(stockPriceChartCanvas, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Stock Mid ($)',
+              data: [],
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59,130,246,0.15)',
+              fill: false,
+              tension: 0.1,
+              pointRadius: 0,
+              borderWidth: 2
+            },
+            {
+              label: 'Buy Trades',
+              data: [],
+              borderColor: '#16a34a',
+              backgroundColor: '#16a34a',
+              pointStyle: 'triangle',
+              pointRadius: 7,
+              pointRotation: 0,
+              showLine: false
+            },
+            {
+              label: 'Sell Trades',
+              data: [],
+              borderColor: '#dc2626',
+              backgroundColor: '#dc2626',
+              pointStyle: 'triangle',
+              pointRadius: 7,
+              pointRotation: 180,
+              showLine: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: 'Stock Price + Hedge Trades' },
+            tooltip: {
+              mode: 'nearest',
+              intersect: false,
+              callbacks: {
+                label: (ctx) => {
+                  const di = ctx.dataIndex;
+                  const ds = ctx.datasetIndex;
+                  if (ds === 1) {
+                    const m = preCalculatedBuyMarkers.find(x => x.day === di);
+                    if (m) return `Buy ${m.shares.toFixed(4)} @ $${m.price.toFixed(2)}`;
+                  }
+                  if (ds === 2) {
+                    const m = preCalculatedSellMarkers.find(x => x.day === di);
+                    if (m) return `Sell ${Math.abs(m.shares).toFixed(4)} @ $${m.price.toFixed(2)}`;
+                  }
+                  return `${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(4)}`;
+                }
+              }
+            },
+            legend: { display: true }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Day' } },
+            y: { title: { display: true, text: 'Price ($)' } }
+          }
+        }
+      });
+
+      // Running P/L chart
+      runningPLChartInstance = new Chart(runningPLChartCanvas, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Running Total P/L ($)',
+            data: [],
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16,185,129,0.15)',
+            fill: false,
+            tension: 0.1,
+            pointRadius: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: 'Running Total P/L' },
+            legend: { display: true }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Day' } },
+            y: { title: { display: true, text: 'P/L ($)' } }
+          }
+        }
+      });
+
+      // Daily P/L chart
+      dailyPLChartInstance = new Chart(dailyPLChartCanvas, {
+        type: 'bar',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Daily P/L ($)',
+            data: [],
+            backgroundColor: (ctx) => (ctx.raw >= 0 ? '#16a34a' : '#dc2626'),
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: 'Daily P/L' },
+            legend: { display: false }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Day' } },
+            y: { title: { display: true, text: 'P/L ($)' }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function updateCharts(d) {
+      // Labels = day index
+      const dayLabel = d.day;
+
+      // Stock chart
+      stockPriceChartInstance.data.labels.push(dayLabel);
+      stockPriceChartInstance.data.datasets[0].data.push(d.stockPrice);
+
+      // marker alignment: index = day (because days start at 0 and increment by 1)
+      const buyMarker = preCalculatedBuyMarkers.find(m => m.day === d.day);
+      const sellMarker = preCalculatedSellMarkers.find(m => m.day === d.day);
+
+      stockPriceChartInstance.data.datasets[1].data.push(buyMarker ? buyMarker.price : null);
+      stockPriceChartInstance.data.datasets[2].data.push(sellMarker ? sellMarker.price : null);
+      stockPriceChartInstance.update();
+
+      // Running P/L chart
+      runningPLChartInstance.data.labels.push(dayLabel);
+      runningPLChartInstance.data.datasets[0].data.push(d.runningTotalPL);
+      runningPLChartInstance.update();
+
+      // Daily P/L chart
+      dailyPLChartInstance.data.labels.push(dayLabel);
+      dailyPLChartInstance.data.datasets[0].data.push(d.totalDailyPL);
+      dailyPLChartInstance.update();
+    }
+
+    // ---------- Buttons ----------
+    initializeSimulationBtn.addEventListener('click', initializeSimulation);
+    nextDayBtn.addEventListener('click', advanceDay);
+    showSummaryBtn.addEventListener('click', displaySummary);
+    resetSimulationBtn.addEventListener('click', () => resetSimulation({ silent: false }));
+
+    // ---------- On load ----------
+    window.addEventListener('load', () => {
+      resetSimulation({ silent: true });
+    });
+  </script>
 </body>
 </html>
