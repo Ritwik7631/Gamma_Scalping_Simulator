@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Delta Hedging Simulation (Realistic)</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { font-family: Inter, sans-serif; background:#f0f4f8; }
+</style>
+</head>
+
+<body class="p-6 flex justify-center">
+<div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-6xl">
+
+<h1 class="text-3xl font-bold mb-6">Delta Hedging Simulation (With Frictions)</h1>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+<input id="initialStockPrice" type="number" value="100" step="0.01" class="border p-2 rounded" placeholder="Initial Price">
+<input id="strikePrice" type="number" value="100" step="0.01" class="border p-2 rounded" placeholder="Strike">
+<input id="daysToExpiry" type="number" value="30" class="border p-2 rounded" placeholder="Days">
+<input id="impliedVol" type="number" value="20" step="0.1" class="border p-2 rounded" placeholder="IV %">
+<input id="realizedVol" type="number" value="25" step="0.1" class="border p-2 rounded" placeholder="RV %">
+<input id="stockSpread" type="number" value="0.01" step="0.001" class="border p-2 rounded" placeholder="Stock Spread">
+<input id="optionSpread" type="number" value="0.05" step="0.01" class="border p-2 rounded" placeholder="Option Spread">
+<input id="deltaThreshold" type="number" value="0.05" step="0.01" class="border p-2 rounded" placeholder="Δ Threshold">
+</div>
+
+<div class="flex gap-4 mb-6">
+<button id="runBtn" class="bg-blue-600 text-white px-4 py-2 rounded">Run Simulation</button>
+</div>
+
+<canvas id="priceChart" height="120"></canvas>
+<canvas id="plChart" height="120" class="mt-6"></canvas>
+
+<table class="mt-6 w-full border text-sm">
+<thead class="bg-gray-100">
+<tr>
+<th class="p-2 border">Day</th>
+<th class="p-2 border">Stock</th>
+<th class="p-2 border">Option</th>
+<th class="p-2 border">Delta</th>
+<th class="p-2 border">Shares</th>
+<th class="p-2 border">Daily P/L</th>
+<th class="p-2 border">Cum P/L</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+
+</div>
+
+<script>
+// ---------- math ----------
+function normCDF(x){
+  return (1 + Math.erf(x/Math.sqrt(2))) / 2;
+}
+
+function bsPrice(S,K,T,sigma){
+  if(T<=0) return Math.max(0,S-K);
+  let d1=(Math.log(S/K)+0.5*sigma*sigma*T)/(sigma*Math.sqrt(T));
+  let d2=d1-sigma*Math.sqrt(T);
+  return S*normCDF(d1)-K*normCDF(d2);
+}
+
+function bsDelta(S,K,T,sigma){
+  if(T<=0) return S>K?1:0;
+  let d1=(Math.log(S/K)+0.5*sigma*sigma*T)/(sigma*Math.sqrt(T));
+  return normCDF(d1);
+}
+
+// ---------- state ----------
+let volState=0;
+
+// ---------- simulation ----------
+document.getElementById("runBtn").onclick=()=>{
+
+const S0=+initialStockPrice.value;
+const K=+strikePrice.value;
+const days=+daysToExpiry.value;
+const iv=+impliedVol.value/100;
+const rv=+realizedVol.value/100;
+const stockSpread=+stockSpread.value;
+const optionSpread=+optionSpread.value;
+const dThresh=+deltaThreshold.value;
+
+volState=rv;
+
+let S=S0;
+let T=days/252;
+let opt=bsPrice(S,K,T,iv)+optionSpread/2;
+let delta=bsDelta(S,K,T,iv);
+let shares=-delta;
+let cumPL=0;
+
+const rows=[];
+const prices=[];
+const pls=[];
+
+for(let d=1;d<=days;d++){
+  // vol clustering
+  volState=0.9*volState+0.1*rv+0.1*(Math.random()-0.5);
+  volState=Math.max(0.01,volState);
+
+  let z=Math.sqrt(-2*Math.log(Math.random()))*Math.cos(2*Math.PI*Math.random());
+  let Sprev=S;
+  S=S*Math.exp(-0.5*volState*volState/252+volState*Math.sqrt(1/252)*z);
+
+  let Tnew=(days-d)/252;
+  let optMid=bsPrice(S,K,Tnew,iv);
+  let optExec=optMid-optionSpread/2;
+
+  let deltaNew=bsDelta(S,K,Tnew,iv);
+  let targetShares=-deltaNew;
+  let trade=0;
+
+  if(Math.abs(targetShares-shares)>dThresh){
+    trade=targetShares-shares;
+  }
+
+  let execPx=trade>0?S+stockSpread/2:S-stockSpread/2;
+  let stockPL=(S-Sprev)*shares;
+  let optPL=optExec-opt;
+
+  let slippage=Math.abs(trade)*S*volState*0.001;
+
+  let dailyPL=stockPL+optPL-slippage;
+  cumPL+=dailyPL;
+
+  shares+=trade;
+  opt=optExec;
+
+  rows.push({d,S,opt,delta:deltaNew,shares,dailyPL,cumPL});
+  prices.push(S);
+  pls.push(cumPL);
+}
+
+// ---------- table ----------
+table.innerHTML="";
+rows.forEach(r=>{
+  table.innerHTML+=`
+  <tr>
+  <td class="border p-1">${r.d}</td>
+  <td class="border p-1">$${r.S.toFixed(2)}</td>
+  <td class="border p-1">$${r.opt.toFixed(2)}</td>
+  <td class="border p-1">${r.delta.toFixed(3)}</td>
+  <td class="border p-1">${r.shares.toFixed(3)}</td>
+  <td class="border p-1 ${r.dailyPL>=0?'text-green-600':'text-red-600'}">$${r.dailyPL.toFixed(2)}</td>
+  <td class="border p-1 ${r.cumPL>=0?'text-green-600':'text-red-600'}">$${r.cumPL.toFixed(2)}</td>
+  </tr>`;
+});
+
+// ---------- charts ----------
+if(window.pc) pc.destroy();
+if(window.plc) plc.destroy();
+
+pc=new Chart(priceChart,{
+type:"line",
+data:{labels:rows.map(r=>r.d),datasets:[{label:"Stock",data:prices,borderColor:"#2563eb"}]},
+options:{responsive:true}
+});
+
+plc=new Chart(plChart,{
+type:"line",
+data:{labels:rows.map(r=>r.d),datasets:[{label:"Cumulative P/L",data:pls,borderColor:"#16a34a"}]},
+options:{responsive:true}
+});
+};
+</script>
+</body>
+</html>
