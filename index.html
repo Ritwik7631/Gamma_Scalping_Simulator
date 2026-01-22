@@ -11,6 +11,7 @@
 <style>
 body { font-family: Inter, sans-serif; background:#f0f4f8; }
 canvas { max-height: 300px; }
+.label { font-size: 0.85rem; font-weight: 600; color: #334155; }
 </style>
 </head>
 
@@ -20,14 +21,47 @@ canvas { max-height: 300px; }
 <h1 class="text-3xl font-bold mb-6">Delta Hedging Simulation (With Frictions)</h1>
 
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-<input id="initialStockPrice" type="number" value="100" step="0.01" class="border p-2 rounded">
-<input id="strikePrice" type="number" value="100" step="0.01" class="border p-2 rounded">
-<input id="daysToExpiry" type="number" value="30" class="border p-2 rounded">
-<input id="impliedVol" type="number" value="20" step="0.1" class="border p-2 rounded">
-<input id="realizedVol" type="number" value="25" step="0.1" class="border p-2 rounded">
-<input id="stockSpread" type="number" value="0.01" step="0.001" class="border p-2 rounded">
-<input id="optionSpread" type="number" value="0.05" step="0.01" class="border p-2 rounded">
-<input id="deltaThreshold" type="number" value="0.05" step="0.01" class="border p-2 rounded">
+
+<div>
+  <div class="label">Initial Stock Price ($)</div>
+  <input id="initialStockPrice" type="number" value="100" step="0.01" class="border p-2 rounded w-full">
+</div>
+
+<div>
+  <div class="label">Strike Price ($)</div>
+  <input id="strikePrice" type="number" value="100" step="0.01" class="border p-2 rounded w-full">
+</div>
+
+<div>
+  <div class="label">Days to Expiry</div>
+  <input id="daysToExpiry" type="number" value="30" class="border p-2 rounded w-full">
+</div>
+
+<div>
+  <div class="label">Implied Vol (%)</div>
+  <input id="impliedVol" type="number" value="20" step="0.1" class="border p-2 rounded w-full">
+</div>
+
+<div>
+  <div class="label">Realized Vol (%)</div>
+  <input id="realizedVol" type="number" value="25" step="0.1" class="border p-2 rounded w-full">
+</div>
+
+<div>
+  <div class="label">Stock Bid–Ask Spread ($)</div>
+  <input id="stockSpread" type="number" value="0.01" step="0.001" class="border p-2 rounded w-full">
+</div>
+
+<div>
+  <div class="label">Option Bid–Ask Spread ($)</div>
+  <input id="optionSpread" type="number" value="0.05" step="0.01" class="border p-2 rounded w-full">
+</div>
+
+<div>
+  <div class="label">Delta Rehedge Threshold</div>
+  <input id="deltaThreshold" type="number" value="0.05" step="0.01" class="border p-2 rounded w-full">
+</div>
+
 </div>
 
 <button id="runBtn" class="bg-blue-600 text-white px-4 py-2 rounded mb-6">
@@ -55,106 +89,79 @@ Run Simulation
 </div>
 
 <script>
-// ---------- Normal CDF (no Math.erf) ----------
+// -------- Normal CDF --------
 function normCDF(x) {
   const t = 1 / (1 + 0.2316419 * Math.abs(x));
   const d = 0.3989423 * Math.exp(-x * x / 2);
-  let prob = d * t * (
-    0.3193815 +
-    t * (-0.3565638 +
-    t * (1.781478 +
-    t * (-1.821256 +
-    t * 1.330274)))
-  );
-  if (x > 0) prob = 1 - prob;
-  return prob;
+  let p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return x > 0 ? 1 - p : p;
 }
 
-// ---------- Black–Scholes ----------
+// -------- Black–Scholes --------
 function bsPrice(S,K,T,sigma){
   if(T<=0) return Math.max(0,S-K);
   let d1=(Math.log(S/K)+0.5*sigma*sigma*T)/(sigma*Math.sqrt(T));
   let d2=d1-sigma*Math.sqrt(T);
   return S*normCDF(d1)-K*normCDF(d2);
 }
-
 function bsDelta(S,K,T,sigma){
   if(T<=0) return S>K?1:0;
   let d1=(Math.log(S/K)+0.5*sigma*sigma*T)/(sigma*Math.sqrt(T));
   return normCDF(d1);
 }
 
-// ---------- Simulation ----------
-let priceChart, plChart;
-let volState=0;
+// -------- Simulation --------
+let priceChart, plChart, volState=0;
 
 document.getElementById("runBtn").onclick = () => {
 
-const S0 = +document.getElementById("initialStockPrice").value;
-const K = +document.getElementById("strikePrice").value;
-const days = +document.getElementById("daysToExpiry").value;
-const iv = +document.getElementById("impliedVol").value / 100;
-const rv = +document.getElementById("realizedVol").value / 100;
-const stockSpreadVal = +document.getElementById("stockSpread").value;
-const optionSpreadVal = +document.getElementById("optionSpread").value;
-const deltaThresh = +document.getElementById("deltaThreshold").value;
+const S0 = +initialStockPrice.value;
+const K = +strikePrice.value;
+const days = +daysToExpiry.value;
+const iv = +impliedVol.value/100;
+const rv = +realizedVol.value/100;
+const stockSpreadVal = +stockSpread.value;
+const optionSpreadVal = +optionSpread.value;
+const deltaThresh = +deltaThreshold.value;
 
 volState = rv;
 
-let S = S0;
-let T = days / 252;
-let optionPrice = bsPrice(S,K,T,iv) + optionSpreadVal / 2;
-let delta = bsDelta(S,K,T,iv);
-let shares = -delta;
-let cumPL = 0;
+let S=S0, optionPrice=bsPrice(S,K,days/252,iv)+optionSpreadVal/2;
+let delta=bsDelta(S,K,days/252,iv), shares=-delta, cumPL=0;
 
-const rows=[];
-const prices=[];
-const pls=[];
+const rows=[], prices=[], pls=[];
 
 for(let d=1; d<=days; d++){
-  // Vol clustering
-  volState = 0.9 * volState + 0.1 * rv + 0.1 * (Math.random()-0.5);
-  volState = Math.max(0.01, volState);
+  volState=Math.max(0.01,0.9*volState+0.1*rv+0.1*(Math.random()-0.5));
+  const z=Math.sqrt(-2*Math.log(Math.random()))*Math.cos(2*Math.PI*Math.random());
+  const prevS=S;
+  S*=Math.exp(-0.5*volState**2/252+volState*Math.sqrt(1/252)*z);
 
-  const z = Math.sqrt(-2*Math.log(Math.random())) * Math.cos(2*Math.PI*Math.random());
-  const prevS = S;
-  S = S * Math.exp(-0.5*volState*volState/252 + volState*Math.sqrt(1/252)*z);
+  const optMid=bsPrice(S,K,(days-d)/252,iv);
+  const optExec=optMid-optionSpreadVal/2;
+  const newDelta=bsDelta(S,K,(days-d)/252,iv);
+  const targetShares=-newDelta;
 
-  const Tnew = (days-d)/252;
-  const optMid = bsPrice(S,K,Tnew,iv);
-  const optExec = optMid - optionSpreadVal/2;
+  let trade=Math.abs(targetShares-shares)>deltaThresh?targetShares-shares:0;
+  const stockPL=(S-prevS)*shares;
+  const optionPL=optExec-optionPrice;
+  const slip=Math.abs(trade)*S*volState*0.001;
 
-  const newDelta = bsDelta(S,K,Tnew,iv);
-  const targetShares = -newDelta;
+  const dailyPL=stockPL+optionPL-slip;
+  cumPL+=dailyPL;
 
-  let trade = 0;
-  if (Math.abs(targetShares - shares) > deltaThresh) {
-    trade = targetShares - shares;
-  }
-
-  const execPx = trade > 0 ? S + stockSpreadVal/2 : S - stockSpreadVal/2;
-
-  const stockPL = (S - prevS) * shares;
-  const optionPL = optExec - optionPrice;
-  const slippage = Math.abs(trade) * S * volState * 0.001;
-
-  const dailyPL = stockPL + optionPL - slippage;
-  cumPL += dailyPL;
-
-  shares += trade;
-  optionPrice = optExec;
+  shares+=trade;
+  optionPrice=optExec;
 
   rows.push({d,S,optionPrice,newDelta,shares,dailyPL,cumPL});
   prices.push(S);
   pls.push(cumPL);
 }
 
-// ---------- Render table ----------
-const table = document.getElementById("table");
+// render
 table.innerHTML="";
 rows.forEach(r=>{
-  table.innerHTML += `
+  table.innerHTML+=`
   <tr>
     <td class="border p-1">${r.d}</td>
     <td class="border p-1">$${r.S.toFixed(2)}</td>
@@ -166,22 +173,18 @@ rows.forEach(r=>{
   </tr>`;
 });
 
-// ---------- Charts ----------
 if(priceChart) priceChart.destroy();
 if(plChart) plChart.destroy();
 
-priceChart = new Chart(document.getElementById("priceChart"), {
-  type: "line",
-  data: { labels: rows.map(r=>r.d),
-    datasets: [{ label:"Stock Price", data:prices, borderColor:"#2563eb" }]
-  }
+priceChart=new Chart(priceChartCanvas={getContext:()=>priceChartCanvas.getContext("2d")});
+priceChart=new Chart(document.getElementById("priceChart"),{
+  type:"line",
+  data:{labels:rows.map(r=>r.d),datasets:[{label:"Stock Price",data:prices,borderColor:"#2563eb"}]}
 });
 
-plChart = new Chart(document.getElementById("plChart"), {
-  type: "line",
-  data: { labels: rows.map(r=>r.d),
-    datasets: [{ label:"Cumulative P/L", data:pls, borderColor:"#16a34a" }]
-  }
+plChart=new Chart(document.getElementById("plChart"),{
+  type:"line",
+  data:{labels:rows.map(r=>r.d),datasets:[{label:"Cumulative P/L",data:pls,borderColor:"#16a34a"}]}
 });
 };
 </script>
